@@ -1,12 +1,12 @@
+# Upload Assistant © 2025 Audionut — Licensed under UAPL v1.0
 # -*- coding: utf-8 -*-
 # import discord
-import aiofiles
 import cli_ui
 import re
 from data.config import config
 from src.console import console
+from src.get_desc import DescriptionBuilder
 from src.languages import process_desc_language
-from src.trackers.COMMON import COMMON
 from src.trackers.UNIT3D import UNIT3D
 
 
@@ -14,7 +14,6 @@ class DP(UNIT3D):
     def __init__(self, config):
         super().__init__(config, tracker_name='DP')
         self.config = config
-        self.common = COMMON(config)
         self.tracker = 'DP'
         self.source_flag = 'DarkPeers'
         self.base_url = 'https://darkpeers.org'
@@ -30,7 +29,7 @@ class DP(UNIT3D):
             'nikt0', 'nSD', 'OFT', 'PiTBULL', 'PRODJi', 'RARBG', 'Rifftrax', 'ROCKETRACCOON',
             'SANTi', 'SasukeducK', 'SEEDSTER', 'ShAaNiG', 'Sicario', 'STUTTERSHIT', 'TAoE',
             'TGALAXY', 'TGx', 'TORRENTGALAXY', 'ToVaR', 'TSP', 'TSPxL', 'ViSION', 'VXT',
-            'WAF', 'WKS', 'X0r', 'YIFY', 'YTS', ['EVO', 'WEB-DL only']
+            'WAF', 'WKS', 'X0r', 'YIFY', 'YTS',
         ]
         pass
 
@@ -53,9 +52,14 @@ class DP(UNIT3D):
             console.print(f'[bold red]{self.tracker} requires at least one Nordic/English audio or subtitle track.')
             return False
 
-        if meta['type'] == "ENCODE" and meta.get('tag', "") and 'fgt' in meta['tag'].lower():
+        if meta['type'] == "ENCODE" and meta.get('tag', "") in ['FGT']:
             if not meta['unattended']:
                 console.print(f"[bold red]{self.tracker} does not allow FGT encodes, skipping upload.")
+            return False
+
+        if meta['type'] not in ['WEBDL'] and meta.get('tag', "") in ['EVO']:
+            if not meta['unattended']:
+                console.print(f"[bold red]{self.tracker} does not allow EVO for non-WEBDL types, skipping upload.")
             return False
 
         return should_continue
@@ -72,11 +76,8 @@ class DP(UNIT3D):
             logo_path = await get_logo(tmdb_id, category, debug, logo_languages=logo_languages, TMDB_API_KEY=TMDB_API_KEY, TMDB_BASE_URL=TMDB_BASE_URL)
             if logo_path:
                 meta['logo'] = logo_path
-        signature = f"\n[right][url=https://github.com/Audionut/Upload-Assistant][size=4]{meta['ua_signature']}[/size][/url][/right]"
-        await self.common.unit3d_edit_desc(meta, self.tracker, signature)
-        async with aiofiles.open(f"{meta['base_dir']}/tmp/{meta['uuid']}/[{self.tracker}]DESCRIPTION.txt", 'r', encoding='utf-8') as f:
-            desc = await f.read()
-        return {'description': desc}
+
+        return {'description': await DescriptionBuilder(self.config).unit3d_edit_desc(meta, self.tracker)}
 
     async def get_additional_data(self, meta):
         data = {
